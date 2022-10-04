@@ -1,0 +1,43 @@
+name: Deploy to Digital Ocean
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+
+  deploy:
+    name: Deploy to DO
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL_PSY: ${{ secrets.DATABASE_URL_PSY }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: install openssl
+      run: sudo apt install openssl
+
+    - name: install necessary packages
+      run: pip install -r requirements.txt
+
+    - name: run db migrations
+      run: alembic upgrade head
+
+
+    - name: pull latest from repo
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: root
+        key: ${{ secrets.SSH_KEY }}
+        script: cd /root/code/cronhooks-api/ && git pull origin main
+
+    - name: build docker image
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: root
+        key: ${{ secrets.SSH_KEY }}
+        script: cd /root/code/cronhooks-api/ && docker-compose up -d --no-deps --build web

@@ -1,0 +1,86 @@
+version: '2'
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - 8000
+    env_file:
+      - ./.env.prod
+    environment:
+     - DD_SITE="us5.datadoghq.com"
+     - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+     - DD_DOGSTATSD_URL="udp://datadog:8126"
+     - DD_AGENT_HOST="datadog"
+     - DD_SERVICE="cronhooks"
+     - DD_API_KEY=a69ac2c24e013c925071ca5d40958064
+     - DD_ENV="prod"
+     - DD_LOGS_INJECTION=true
+     - DD_TRACE_STARTUP_LOGS=true
+     - DD_TRACE_DEBUG=true
+     - DD_LOG_LEVEL=debug
+    networks:
+      - local-net
+
+  proxy:
+    image: 'jwilder/nginx-proxy:alpine'
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    labels:
+      com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy: "true"
+    volumes:
+      - certs:/etc/nginx/certs:ro
+      - conf.d:/etc/nginx/conf.d
+      - vhost.d:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    networks:
+      - local-net
+
+  letsencrypt-companion:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    restart: always
+    volumes:
+      - certs:/etc/nginx/certs
+      - conf.d:/etc/nginx/conf.d
+      - vhost.d:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - proxy
+    networks:
+      - local-net
+
+  datadog:
+    image: gcr.io/datadoghq/agent:latest
+    pid: host
+    environment:
+     - DD_SITE=us5.datadoghq.com
+     - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+     - DD_API_KEY=a69ac2c24e013c925071ca5d40958064
+     - DD_LOGS_ENABLED=true
+     - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
+     - DD_APM_NON_LOCAL_TRAFFIC=true
+    volumes:
+     - /var/run/docker.sock:/var/run/docker.sock:ro
+     - /var/lib/docker/containers:/var/lib/docker/containers:ro
+     - /proc/:/host/proc/:ro
+     - /opt/datadog-agent/run:/opt/datadog-agent/run:rw
+     - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+    networks:
+      - local-net
+
+volumes:
+  certs:
+  conf.d:
+  vhost.d:
+  html:
+
+networks:
+    local-net:
+        driver: bridge
+
+
