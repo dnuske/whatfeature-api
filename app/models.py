@@ -30,10 +30,12 @@ class FeatureStatus(Enum):
     IN_PROGRESS = 'IN_PROGRESS'
     DONE = 'DONE'
 
+@unique
 class VoteType(Enum):
     UPVOTE = 'UPVOTE'
     DOWNVOTE = 'DOWNVOTE'
 
+@unique
 class UserType(Enum):
     FOUNDER = 'FOUNDER'
     PUSHER = 'PUSHER'
