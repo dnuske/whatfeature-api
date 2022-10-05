@@ -1,3 +1,4 @@
+from io import StringIO
 import os, sys
 from typing import AsyncGenerator
 
@@ -23,49 +24,65 @@ Base: DeclarativeMeta = declarative_base()
 
 
 @unique
-class HookMethods(Enum):
-    GET = 'get'
-    POST = 'post'
+class FeatureStatus(Enum):
+    DRAFT = 'DRAFT'
+    VOTING = 'VOTING'
+    IN_PROGRESS = 'IN_PROGRESS'
+    DONE = 'DONE'
+
+class VoteType(Enum):
+    UPVOTE = 'UPVOTE'
+    DOWNVOTE = 'DOWNVOTE'
+
+class UserType(Enum):
+    FOUNDER = 'FOUNDER'
+    PUSHER = 'PUSHER'
 
 # TODO: add alembic migration sortable hash to identify migration versions and files (PR proposal)
 # TODO: add SQLAlchemyBaseUserTableULID PR proposal to fastapi_users package
 class User(SQLAlchemyBaseUserTableUUID, Base):
     wants_product_updates = Column(Boolean, default=False)
+    type = Column(pgEnum(UserType, name='user_type'), default=UserType.PUSHER)
 
 
-
-class Hook(Base):
-    __tablename__ = "hooks"
+class Project(Base):
+    __tablename__ = "projects"
     id = Column(String, server_default=text("generate_ulid()"), primary_key=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    method = Column(pgEnum(HookMethods), unique=False, nullable=False)
-    url = Column(String, nullable=False)
-    body = Column(String)
-    cron = Column(String, nullable=False)
-    headers = Column(JSONB)
-    last_hit = Column(DateTime)
+    name = Column(String, nullable=False)
+    logo = Column(String)
+    color_primary = Column(String)
+    color_secondary = Column(String)
+    subdomain_url = Column(String)
     user_id = Column(UUIDType(binary=False), ForeignKey('user.id'))
+    created_at = Column(DateTime, default=datetime.now)
 
-class Hit(Base):
-    __tablename__ = "hits"
+class Feature(Base):
+    __tablename__ = "features"
     id = Column(String, server_default=text("generate_ulid()"), primary_key=True)
-    started_at = Column(DateTime, default=datetime.now)
-    finished_at = Column(DateTime)
-    hook_id = Column(String, ForeignKey('hooks.id', ondelete="CASCADE"))
-    response_status = Column(Integer)
-    response_data = Column(String)
+    title = Column(String, nullable=False)
+    description = Column(String)
+    project_id = Column(String, ForeignKey('projects.id'))
+    visible = Column(Boolean, default=True)
+    status = Column(pgEnum(FeatureStatus, name='feature_status'), default=FeatureStatus.DRAFT)
+    allow_voting = Column(Boolean, default=True)
+    # allow_pay = Column(Boolean, default=False)
 
-# guarantees should be given ran_until should never be more than 1 minute, and should always be closer to 0 as possible
-class Run(Base):
-    __tablename__ = "runs"
+class Vote(Base):
+    __tablename__ = "votes"
     id = Column(String, server_default=text("generate_ulid()"), primary_key=True)
-    scheduled_at = Column(DateTime, default=datetime.now)
-    effectively_ran_at = Column(DateTime, default=datetime.now, nullable=True)
-    ran_until = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    hook_id = Column(String, ForeignKey('hooks.id', ondelete="CASCADE"))
-    hit_id = Column(String, ForeignKey('hits.id', ondelete="CASCADE"))
+    type = Column(pgEnum(VoteType, name='vote_type'))
+    user_id = Column(UUIDType(binary=False), ForeignKey('user.id'))
+    feature_id = Column(String, ForeignKey('features.id'))
+    # project_id should keep the same type as the project.id
+    project_id = Column(String, ForeignKey('projects.id'))
 
+class Comment(Base):
+    __tablename__ = "comments"
+    id = Column(String, server_default=text("generate_ulid()"), primary_key=True)
+    content = Column(String, nullable=False)
+    user_id = Column(UUIDType(binary=False), ForeignKey('user.id'))
+    feature_id = Column(String, ForeignKey('features.id'))
+    project_id = Column(String, ForeignKey('projects.id'))
 
 
 engine = create_async_engine(DATABASE_URL)
